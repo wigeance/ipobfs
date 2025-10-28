@@ -1,64 +1,32 @@
-name: Build ipobfs with OpenWrt Toolchain
+name: Build ipobfs binary aarch64
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-
-    strategy:
-      matrix:
-        arch: [aarch64, mipsel]
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget tar xz-utils file
+    - name: Install cross-compiler
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu build-essential
 
-      - name: Download OpenWrt toolchain
-        run: |
-          mkdir -p $HOME/toolchains
-          cd $HOME/toolchains
-          if [[ "${{ matrix.arch }}" == "aarch64" ]]; then
-            TARGET="armvirt/64"
-          elif [[ "${{ matrix.arch }}" == "mipsel" ]]; then
-            TARGET="ramips/mt76x8"
-          fi
-          wget https://downloads.openwrt.org/releases/23.05.2/targets/${TARGET}/openwrt-toolchain-23.05.2-${TARGET}_gcc-12.3.0_musl.Linux-x86_64.tar.xz
-          tar xf openwrt-toolchain-23.05.2-${TARGET}_gcc-12.3.0_musl.Linux-x86_64.tar.xz
-          mv openwrt-toolchain-* $HOME/toolchains/${{ matrix.arch }}
+    - name: Build ipobfs binary
+      run: |
+        mkdir -p build
+        aarch64-linux-gnu-gcc -O2 -static -o build/ipobfs ipobfs/*.c ipobfs_mod/*.c
+        ls -lh build/ipobfs
 
-      - name: Build ipobfs
-        run: |
-          export TOOLCHAIN_DIR=$HOME/toolchains/${{ matrix.arch }}
-          export STAGING_DIR=$TOOLCHAIN_DIR/staging_dir
-          export PATH=$TOOLCHAIN_DIR/bin:$PATH
-
-          cd ipobfs
-
-          if [[ "${{ matrix.arch }}" == "aarch64" ]]; then
-            export CROSS_COMPILE=aarch64-openwrt-linux-
-          elif [[ "${{ matrix.arch }}" == "mipsel" ]]; then
-            export CROSS_COMPILE=mipsel-openwrt-linux-
-          fi
-
-          make clean || true
-          make CC=${CROSS_COMPILE}gcc CFLAGS="-s -O3"
-
-          mkdir -p $GITHUB_WORKSPACE/build/${{ matrix.arch }}
-          cp ipobfs $GITHUB_WORKSPACE/build/${{ matrix.arch }}/ipobfs
-
-          file $GITHUB_WORKSPACE/build/${{ matrix.arch }}/ipobfs
-
-      - name: Upload binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: ipobfs-openwrt-binaries
-          path: build/
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: ipobfs-binary
+        path: build/ipobfs
