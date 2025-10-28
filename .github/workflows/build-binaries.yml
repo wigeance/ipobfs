@@ -1,0 +1,43 @@
+name: Build ipobfs binaries
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        arch: [aarch64, mipsel]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install cross-compilers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc-aarch64-linux-gnu gcc-mipsel-linux-gnu file
+
+      - name: Build for ${{ matrix.arch }}
+        run: |
+          cd ipobfs/ipobfs
+          if [[ "${{ matrix.arch }}" == "aarch64" ]]; then
+            export CROSS_COMPILE=aarch64-linux-gnu-
+          elif [[ "${{ matrix.arch }}" == "mipsel" ]]; then
+            export CROSS_COMPILE=mipsel-linux-gnu-
+          fi
+          make clean || true
+          make CC=${CROSS_COMPILE}gcc CFLAGS="-s -O3 -static"
+          file ipobfs || true
+          mkdir -p $GITHUB_WORKSPACE/build/${{ matrix.arch }}
+          cp ipobfs $GITHUB_WORKSPACE/build/${{ matrix.arch }}/ipobfs
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipobfs-binaries
+          path: build/
