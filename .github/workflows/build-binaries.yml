@@ -1,4 +1,4 @@
-name: Build ipobfs binary for ramips/mt7621
+name: Build ipobfs binary only for ramips/mt7621
 
 on:
   push:
@@ -30,25 +30,25 @@ jobs:
         SDK_PATH=$(tar -tf sdk.tar.zst | head -n 1 | cut -f1 -d"/")
         mv $SDK_DIR/$SDK_PATH/* $SDK_DIR
 
-    - name: Prepare SDK environment
+    - name: Prepare SDK feeds
       run: |
         cd $SDK_DIR
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: Copy ipobfs sources to SDK
+    - name: Copy only ipobfs sources
       run: |
         mkdir -p $SDK_DIR/package/ipobfs
         cp -r ipobfs/* $SDK_DIR/package/ipobfs/
-        cp -r ipobfs_mod $SDK_DIR/package/ipobfs/
 
     - name: Build ipobfs binary
       run: |
         cd $SDK_DIR
-        make package/ipobfs/compile V=99
+        echo "CONFIG_TARGET_ramips_mt7621=y" > .config
+        make package/ipobfs/compile V=99 -j$(nproc)
         find bin/targets -type f -executable -name ipobfs -exec cp {} $GITHUB_WORKSPACE/ipobfs \;
 
-    - name: Upload binary artifact
+    - name: Upload ipobfs binary
       uses: actions/upload-artifact@v4
       with:
         name: ipobfs-binary
