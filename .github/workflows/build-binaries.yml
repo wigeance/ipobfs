@@ -24,7 +24,7 @@ jobs:
 
       - name: Build for ${{ matrix.arch }}
         run: |
-          cd ipobfs/ipobfs
+          cd ipobfs
           if [[ "${{ matrix.arch }}" == "aarch64" ]]; then
             export CROSS_COMPILE=aarch64-linux-gnu-
           elif [[ "${{ matrix.arch }}" == "mipsel" ]]; then
