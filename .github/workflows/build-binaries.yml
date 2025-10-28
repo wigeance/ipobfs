@@ -1,4 +1,4 @@
-name: Build ipobfs binaries
+name: Build ipobfs with OpenWrt Toolchain
 
 on:
   push:
@@ -17,27 +17,48 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install cross-compilers
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential gcc-aarch64-linux-gnu gcc-mipsel-linux-gnu file
+          sudo apt-get install -y wget tar xz-utils file
 
-      - name: Build for ${{ matrix.arch }}
+      - name: Download OpenWrt toolchain
         run: |
-          cd ipobfs
+          mkdir -p $HOME/toolchains
+          cd $HOME/toolchains
           if [[ "${{ matrix.arch }}" == "aarch64" ]]; then
-            export CROSS_COMPILE=aarch64-linux-gnu-
+            TARGET="armvirt/64"
           elif [[ "${{ matrix.arch }}" == "mipsel" ]]; then
-            export CROSS_COMPILE=mipsel-linux-gnu-
+            TARGET="ramips/mt76x8"
           fi
+          wget https://downloads.openwrt.org/releases/23.05.2/targets/${TARGET}/openwrt-toolchain-23.05.2-${TARGET}_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          tar xf openwrt-toolchain-23.05.2-${TARGET}_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          mv openwrt-toolchain-* $HOME/toolchains/${{ matrix.arch }}
+
+      - name: Build ipobfs
+        run: |
+          export TOOLCHAIN_DIR=$HOME/toolchains/${{ matrix.arch }}
+          export STAGING_DIR=$TOOLCHAIN_DIR/staging_dir
+          export PATH=$TOOLCHAIN_DIR/bin:$PATH
+
+          cd ipobfs
+
+          if [[ "${{ matrix.arch }}" == "aarch64" ]]; then
+            export CROSS_COMPILE=aarch64-openwrt-linux-
+          elif [[ "${{ matrix.arch }}" == "mipsel" ]]; then
+            export CROSS_COMPILE=mipsel-openwrt-linux-
+          fi
+
           make clean || true
-          make CC=${CROSS_COMPILE}gcc CFLAGS="-s -O3 -static"
-          file ipobfs || true
+          make CC=${CROSS_COMPILE}gcc CFLAGS="-s -O3"
+
           mkdir -p $GITHUB_WORKSPACE/build/${{ matrix.arch }}
           cp ipobfs $GITHUB_WORKSPACE/build/${{ matrix.arch }}/ipobfs
+
+          file $GITHUB_WORKSPACE/build/${{ matrix.arch }}/ipobfs
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: ipobfs-binaries
+          name: ipobfs-openwrt-binaries
           path: build/
