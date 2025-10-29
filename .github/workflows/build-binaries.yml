@@ -1,42 +1,42 @@
-name: Build ipobfs for amd64 and arm64
+name: Build ipobfs (multi-arch)
 
 on:
-  workflow_dispatch:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     strategy:
       matrix:
         arch: [amd64, arm64]
 
     steps:
-      - name: Checkout repository
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up cross build environment
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential gcc-aarch64-linux-gnu libnetfilter-queue-dev libnfnetlink-dev libcap-dev
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            export CC=aarch64-linux-gnu-gcc
-            echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          else
-            export CC=gcc
-            echo "CC=gcc" >> $GITHUB_ENV
-          fi
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Build project
-        working-directory: ./ipobfs
-        run: make
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Upload binary artifact
+      - name: Build inside Docker (for ${{ matrix.arch }})
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ipobfs
+          file: ./ipobfs/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          push: false
+          outputs: type=local,dest=./build-${{ matrix.arch }}
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ipobfs-${{ matrix.arch }}
-          path: ipobfs/ipobfs
+          path: build-${{ matrix.arch }}
